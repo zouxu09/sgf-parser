@@ -30,7 +30,7 @@ mod parser_tests {
 
     #[test]
     fn can_ignore_lowercase_characters() {
-        let sgf = parse("(;CopyRight[2017])");
+        let sgf = parse("(;CP[2017])");
         assert!(sgf.is_ok());
         let sgf = sgf.unwrap();
         assert_eq!(
@@ -227,15 +227,15 @@ mod parser_tests {
                     tokens: vec![
                         SgfToken::Add {
                             color: Color::Black,
-                            coordinate: (1, 1)
+                            coordinates: vec![(1, 1)]
                         },
                         SgfToken::Add {
                             color: Color::Black,
-                            coordinate: (1, 2)
+                            coordinates: vec![(1, 2)]
                         },
                         SgfToken::Add {
                             color: Color::Black,
-                            coordinate: (3, 3)
+                            coordinates: vec![(3, 3)]
                         },
                     ],
                 },],

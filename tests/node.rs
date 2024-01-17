@@ -26,7 +26,7 @@ mod node_tests {
             tokens: vec![
                 SgfToken::Add {
                     color: Color::Black,
-                    coordinate: (1, 1),
+                    coordinates: vec![(1, 1)],
                 },
                 SgfToken::PlayerName {
                     color: Color::White,
@@ -34,11 +34,11 @@ mod node_tests {
                 },
                 SgfToken::Add {
                     color: Color::Black,
-                    coordinate: (2, 2),
+                    coordinates: vec![(2, 2)],
                 },
             ],
         };
         let string_node: String = node.into();
-        assert_eq!(string_node, ";AB[aa][bb]PW[white]");
+        assert_eq!(string_node, ";AB[aa]PW[white]AB[bb]");
     }
 }

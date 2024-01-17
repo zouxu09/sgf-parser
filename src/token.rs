@@ -21,13 +21,14 @@ impl Not for Color {
     }
 }
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Outcome {
     WinnerByResign(Color),
     WinnerByForfeit(Color),
     WinnerByPoints(Color, f32),
     WinnerByTime(Color),
     Draw,
+    Unknown(String),
 }
 
 impl Outcome {
@@ -118,7 +119,7 @@ pub enum DisplayNodes {
 pub enum SgfToken {
     Add {
         color: Color,
-        coordinate: (u8, u8),
+        coordinates: Vec<(u8, u8)>,
     },
     Move {
         color: Color,
@@ -167,15 +168,41 @@ pub enum SgfToken {
     Unknown((String, String)),
     Invalid((String, String)),
     Square {
-        coordinate: (u8, u8),
+        coordinates: Vec<(u8, u8)>,
     },
     Triangle {
-        coordinate: (u8, u8),
+        coordinates: Vec<(u8, u8)>,
+    },
+    Circle {
+        coordinates: Vec<(u8, u8)>,
+    },
+    Cross {
+        coordinates: Vec<(u8, u8)>,
+    },
+    Selected {
+        coordinates: Vec<(u8, u8)>,
+    },
+    DimPoints {
+        coordinates: Vec<(u8, u8)>,
+    },
+    TerritoryBlack {
+        coordinates: Vec<(u8, u8)>,
+    },
+    TerritoryWhite {
+        coordinates: Vec<(u8, u8)>,
     },
     Label {
         label: String,
         coordinate: (u8, u8),
     },
+    NodeName(String),
+    AddEmpty {
+        coordinates: Vec<(u8, u8)>,
+    },
+    MoveNumber(u32),
+    User(String),
+    Source(String),
+    GameComment(String),
 }
 
 impl SgfToken {
@@ -219,58 +246,89 @@ impl SgfToken {
                 _ => None,
             },
             "RU" => Some(SgfToken::Rule(RuleSet::from(value))),
-            "SQ" => str_to_coordinates(value)
-                .ok()
-                .map(|coordinate| SgfToken::Square { coordinate }),
-            "TR" => str_to_coordinates(value)
-                .ok()
-                .map(|coordinate| SgfToken::Triangle { coordinate }),
-            "AB" => str_to_coordinates(value)
-                .ok()
-                .map(|coordinate| SgfToken::Add {
-                    color: Color::Black,
-                    coordinate,
-                }),
-            "B" => move_str_to_coord(value)
-                .ok()
-                .map(|coordinate| SgfToken::Move {
-                    color: Color::Black,
-                    action: coordinate,
-                }),
-            "BL" => value.parse().ok().map(|time| SgfToken::Time {
-                color: Color::Black,
-                time,
-            }),
-            "PB" => Some(SgfToken::PlayerName {
-                color: Color::Black,
+            "SQ" | "TR" | "CR" | "MA" | "SL" | "TB" | "TW" | "DD" => {
+                let coordinates = if let Some((start, end)) = value.split_once(':') {
+                    let start = str_to_coordinates(start).ok().unwrap();
+                    let end = str_to_coordinates(end).ok().unwrap();
+                    (start.0..=end.0)
+                        .flat_map(|x| (start.1..=end.1).map(move |y| (x, y)))
+                        .collect()
+                } else {
+                    vec![str_to_coordinates(value).ok().unwrap()]
+                };
+                match ident.as_ref() {
+                    "SQ" => Some(SgfToken::Square { coordinates }),
+                    "TR" => Some(SgfToken::Triangle { coordinates }),
+                    "CR" => Some(SgfToken::Circle { coordinates }),
+                    "MA" => Some(SgfToken::Cross { coordinates }),
+                    "SL" => Some(SgfToken::Selected { coordinates }),
+                    "TB" => Some(SgfToken::TerritoryBlack { coordinates }),
+                    "TW" => Some(SgfToken::TerritoryWhite { coordinates }),
+                    "DD" => Some(SgfToken::DimPoints { coordinates }),
+                    _ => None,
+                }
+            }
+            "AB" | "AW" | "AE" => {
+                let coordinates = if let Some((start, end)) = value.split_once(':') {
+                    let start = str_to_coordinates(start).ok().unwrap();
+                    let end = str_to_coordinates(end).ok().unwrap();
+                    (start.0..=end.0)
+                        .flat_map(|x| (start.1..=end.1).map(move |y| (x, y)))
+                        .collect()
+                } else {
+                    vec![str_to_coordinates(value).ok().unwrap()]
+                };
+                match ident.as_ref() {
+                    "AB" => Some(SgfToken::Add {
+                        color: Color::Black,
+                        coordinates,
+                    }),
+                    "AW" => Some(SgfToken::Add {
+                        color: Color::White,
+                        coordinates,
+                    }),
+                    "AE" => Some(SgfToken::AddEmpty { coordinates }),
+                    _ => None,
+                }
+            }
+            "B" | "W" => {
+                let color = if ident == "B" {
+                    Color::Black
+                } else {
+                    Color::White
+                };
+                move_str_to_coord(value)
+                    .ok()
+                    .map(|coordinate| SgfToken::Move {
+                        color,
+                        action: coordinate,
+                    })
+            }
+            "BL" | "WL" => {
+                let color = if ident == "BL" {
+                    Color::Black
+                } else {
+                    Color::White
+                };
+                value
+                    .parse()
+                    .ok()
+                    .map(|time| SgfToken::Time { color, time })
+            }
+            "PB" | "PW" => Some(SgfToken::PlayerName {
+                color: if ident == "PB" {
+                    Color::Black
+                } else {
+                    Color::White
+                },
                 name: value.to_string(),
             }),
-            "BR" => Some(SgfToken::PlayerRank {
-                color: Color::Black,
-                rank: value.to_string(),
-            }),
-            "AW" => str_to_coordinates(value)
-                .ok()
-                .map(|coordinate| SgfToken::Add {
-                    color: Color::White,
-                    coordinate,
-                }),
-            "W" => move_str_to_coord(value)
-                .ok()
-                .map(|coordinate| SgfToken::Move {
-                    color: Color::White,
-                    action: coordinate,
-                }),
-            "WL" => value.parse().ok().map(|time| SgfToken::Time {
-                color: Color::White,
-                time,
-            }),
-            "PW" => Some(SgfToken::PlayerName {
-                color: Color::White,
-                name: value.to_string(),
-            }),
-            "WR" => Some(SgfToken::PlayerRank {
-                color: Color::White,
+            "BR" | "WR" => Some(SgfToken::PlayerRank {
+                color: if ident == "BR" {
+                    Color::Black
+                } else {
+                    Color::White
+                },
                 rank: value.to_string(),
             }),
             "RE" => parse_outcome_str(value).ok().map(SgfToken::Result),
@@ -287,11 +345,16 @@ impl SgfToken {
                 _ => SgfToken::Invalid((ident.to_string(), value.to_string())),
             }),
             "TM" => value.parse().ok().map(SgfToken::TimeLimit),
+            "MN" => value.parse().ok().map(SgfToken::MoveNumber),
             "EV" => Some(SgfToken::Event(value.to_string())),
             "OT" => Some(SgfToken::Overtime(value.to_string())),
             "C" => Some(SgfToken::Comment(value.to_string())),
             "GN" => Some(SgfToken::GameName(value.to_string())),
-            "CR" => Some(SgfToken::Copyright(value.to_string())),
+            "N" => Some(SgfToken::NodeName(value.to_string())),
+            "US" => Some(SgfToken::User(value.to_string())),
+            "SO" => Some(SgfToken::Source(value.to_string())),
+            "GC" => Some(SgfToken::GameComment(value.to_string())),
+            "CP" => Some(SgfToken::Copyright(value.to_string())),
             "DT" => Some(SgfToken::Date(value.to_string())),
             "PC" => Some(SgfToken::Place(value.to_string())),
             "GM" => match value.parse::<u8>() {
@@ -306,19 +369,13 @@ impl SgfToken {
                 "utf-8" => Some(SgfToken::Charset(Encoding::UTF8)),
                 _ => Some(SgfToken::Charset(Encoding::Other(value.to_string()))),
             },
-            "OB" => match value.parse::<u32>() {
+            "OB" | "OW" => match value.parse::<u32>() {
                 Ok(n) => Some(SgfToken::MovesRemaining {
-                    color: Color::Black,
-                    moves: n,
-                }),
-                Err(_) => Some(SgfToken::Invalid((
-                    base_ident.to_string(),
-                    value.to_string(),
-                ))),
-            },
-            "OW" => match value.parse::<u32>() {
-                Ok(n) => Some(SgfToken::MovesRemaining {
-                    color: Color::White,
+                    color: if ident == "OB" {
+                        Color::Black
+                    } else {
+                        Color::White
+                    },
                     moves: n,
                 }),
                 Err(_) => Some(SgfToken::Invalid((
@@ -382,13 +439,15 @@ impl SgfToken {
     ///
     /// let token = SgfToken::from_pair("AB", "aa");
     /// assert!(token.is_setup_token());
+    /// let token = SgfToken::from_pair("AW", "aa");
+    /// assert!(token.is_setup_token());
     ///
     /// let token = SgfToken::from_pair("SZ", "19");
     /// assert!(!token.is_setup_token());
     /// ```
     pub fn is_setup_token(&self) -> bool {
         use SgfToken::*;
-        matches!(self, Add { .. })
+        matches!(self, Add { .. } | AddEmpty { .. })
     }
 
     /// Checks if the token is a game info token as defined by the SGF spec.
@@ -435,7 +494,7 @@ impl Into<String> for &SgfToken {
             }
             SgfToken::Handicap(nb_stones) => format!("HA[{}]", nb_stones),
             SgfToken::Rule(rule) => format!("RU[{}]", rule.to_string()),
-            SgfToken::Result(outcome) => match outcome {
+            SgfToken::Result(outcome) => match outcome.clone() {
                 WinnerByPoints(color, points) => format!(
                     "RE[{}+{}]",
                     match color {
@@ -467,22 +526,43 @@ impl Into<String> for &SgfToken {
                     }
                 ),
                 Draw => "RE[Draw]".to_string(),
+                Outcome::Unknown(s) => format!("RE[{}]", s),
             },
-            SgfToken::Square { coordinate } => {
-                let value = coordinate_to_str(*coordinate);
-                format!("SQ[{}]", value)
+            SgfToken::Square { coordinates } => {
+                format!("SQ[{}]", compressed_coordinate_to_str(coordinates.clone()))
             }
-            SgfToken::Triangle { coordinate } => {
-                let value = coordinate_to_str(*coordinate);
-                format!("TR[{}]", value)
+            SgfToken::Triangle { coordinates } => {
+                format!("TR[{}]", compressed_coordinate_to_str(coordinates.clone()))
             }
-            SgfToken::Add { color, coordinate } => {
+            SgfToken::Circle { coordinates } => {
+                format!("CR[{}]", compressed_coordinate_to_str(coordinates.clone()))
+            }
+            SgfToken::Cross { coordinates } => {
+                format!("MA[{}]", compressed_coordinate_to_str(coordinates.clone()))
+            }
+            SgfToken::Selected { coordinates } => {
+                format!("SL[{}]", compressed_coordinate_to_str(coordinates.clone()))
+            }
+            SgfToken::DimPoints { coordinates } => {
+                format!("DD[{}]", compressed_coordinate_to_str(coordinates.clone()))
+            }
+            SgfToken::TerritoryBlack { coordinates } => {
+                format!("TB[{}]", compressed_coordinate_to_str(coordinates.clone()))
+            }
+            SgfToken::TerritoryWhite { coordinates } => {
+                format!("TW[{}]", compressed_coordinate_to_str(coordinates.clone()))
+            }
+            SgfToken::Add { color, coordinates } => {
                 let token = match color {
                     Color::Black => "AB",
                     Color::White => "AW",
                 };
-                let value = coordinate_to_str(*coordinate);
+                let value = compressed_coordinate_to_str((*coordinates).clone());
                 format!("{}[{}]", token, value)
+            }
+            SgfToken::AddEmpty { coordinates } => {
+                let value = compressed_coordinate_to_str((*coordinates).clone());
+                format!("AE[{}]", value)
             }
             SgfToken::Move { color, action } => {
                 let token = match color {
@@ -523,9 +603,14 @@ impl Into<String> for &SgfToken {
             SgfToken::TimeLimit(time) => format!("TM[{}]", time),
             SgfToken::Event(value) => format!("EV[{}]", value),
             SgfToken::Comment(value) => format!("C[{}]", value),
+            SgfToken::MoveNumber(mn) => format!("MN[{}]", mn),
             SgfToken::Overtime(value) => format!("OT[{}]", value),
             SgfToken::GameName(value) => format!("GN[{}]", value),
-            SgfToken::Copyright(value) => format!("CR[{}]", value),
+            SgfToken::User(value) => format!("US[{}]", value),
+            SgfToken::Source(value) => format!("SO[{}]", value),
+            SgfToken::GameComment(value) => format!("GC[{}]", value),
+            SgfToken::NodeName(value) => format!("N[{}]", value),
+            SgfToken::Copyright(value) => format!("CP[{}]", value),
             SgfToken::Date(value) => format!("DT[{}]", value),
             SgfToken::Place(value) => format!("PC[{}]", value),
             SgfToken::Game(game) => format!(
@@ -578,7 +663,7 @@ fn split_size_text(input: &str) -> Option<(u32, u32)> {
     Some((width, height))
 }
 
-/// Converts goban coordinates to string representation
+/// Converts goban coordinate to string representation
 fn coordinate_to_str(coordinate: (u8, u8)) -> String {
     fn to_char(c: u8) -> char {
         (c + if c < 27 { 96 } else { 38 }) as char
@@ -588,6 +673,26 @@ fn coordinate_to_str(coordinate: (u8, u8)) -> String {
     let y = to_char(coordinate.1);
 
     format!("{}{}", x, y)
+}
+
+fn compressed_coordinate_to_str(coordinates: Vec<(u8, u8)>) -> String {
+    let to_char = |c: u8| -> char { (c + if c < 27 { 96 } else { 38 }) as char };
+
+    match coordinates.len() {
+        0 => "".to_string(),
+        1 => {
+            let x1 = to_char(coordinates[0].0);
+            let y1 = to_char(coordinates[0].1);
+            format!("{}{}", x1, y1)
+        }
+        _ => {
+            let x1 = to_char(coordinates.first().unwrap().0);
+            let y1 = to_char(coordinates.first().unwrap().1);
+            let x2 = to_char(coordinates.last().unwrap().0);
+            let y2 = to_char(coordinates.last().unwrap().1);
+            format!("{}{}:{}{}", x1, y1, x2, y2)
+        }
+    }
 }
 
 /// If possible, splits a label text into coordinate and label pair
@@ -641,13 +746,13 @@ fn parse_outcome_str(s: &str) -> Result<Outcome, SgfError> {
 
     let winner_option: Vec<&str> = s.split('+').collect();
     if winner_option.len() != 2 {
-        return Err(SgfError::from(SgfErrorKind::ParseError));
+        return Ok(Outcome::Unknown(s.to_string()));
     }
 
     let winner: Color = match &winner_option[0] as &str {
         "B" => Black,
         "W" => White,
-        _ => return Err(SgfError::from(SgfErrorKind::ParseError)),
+        _ => return Ok(Outcome::Unknown(s.to_string())),
     };
 
     match &winner_option[1] as &str {
@@ -661,7 +766,7 @@ fn parse_outcome_str(s: &str) -> Result<Outcome, SgfError> {
             {
                 Ok(outcome)
             } else {
-                Err(SgfError::from(SgfErrorKind::ParseError))
+                Ok(Outcome::Unknown(s.to_string()))
             }
         }
     }
@@ -672,7 +777,13 @@ fn move_str_to_coord(input: &str) -> Result<Action, SgfError> {
         Ok(Pass)
     } else {
         match str_to_coordinates(input) {
-            Ok(coordinates) => Ok(Move(coordinates.0, coordinates.1)),
+            Ok(coordinates) => {
+                if coordinates.0 == 20 && coordinates.1 == 20 {
+                    return Ok(Pass);
+                } else {
+                    Ok(Move(coordinates.0, coordinates.1))
+                }
+            }
             Err(e) => Err(e),
         }
     }

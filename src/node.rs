@@ -26,8 +26,7 @@ impl GameNode {
 
 impl Into<String> for &GameNode {
     fn into(self) -> String {
-        let mut token_strings: Vec<String> = self.tokens.iter().map(|t| t.into()).collect();
-        token_strings.sort();
+        let token_strings: Vec<String> = self.tokens.iter().map(|t| t.into()).collect();
         let (_, out) = token_strings
             .iter()
             .fold((None, vec![";"]), |(prev, mut out), token| {

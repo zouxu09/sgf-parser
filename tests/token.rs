@@ -20,6 +20,16 @@ mod token_tests {
         assert!(setup_token.is_setup_token());
         assert!(!setup_token.is_root_token());
 
+        let setup_token = SgfToken::from_pair("AW", "cd");
+        assert!(!setup_token.is_game_info_token());
+        assert!(setup_token.is_setup_token());
+        assert!(!setup_token.is_root_token());
+
+        let setup_token = SgfToken::from_pair("AE", "cd");
+        assert!(!setup_token.is_game_info_token());
+        assert!(setup_token.is_setup_token());
+        assert!(!setup_token.is_root_token());
+
         let game_info_token = SgfToken::from_pair("RE", "W+T");
         assert!(game_info_token.is_game_info_token());
         assert!(!game_info_token.is_setup_token());
@@ -49,6 +59,15 @@ mod token_tests {
         );
         let string_token: String = token.into();
         assert_eq!(string_token, "W[kk]");
+
+        let token = SgfToken::from_pair("W", "tt");
+        assert_eq!(
+            token,
+            SgfToken::Move {
+                color: Color::White,
+                action: Action::Pass
+            }
+        );
     }
 
     #[test]
@@ -117,6 +136,10 @@ mod token_tests {
         assert_eq!(
             SgfToken::from_pair("RE", "B+Forfeit"),
             SgfToken::Result(Outcome::WinnerByForfeit(Color::Black))
+        );
+        assert_eq!(
+            SgfToken::from_pair("RE", "unknown"),
+            SgfToken::Result(Outcome::Unknown("unknown".to_string()))
         );
     }
 
@@ -288,11 +311,19 @@ mod token_tests {
     }
 
     #[test]
+    fn can_parse_node_name_tokens() {
+        let token = SgfToken::from_pair("N", "node name");
+        assert_eq!(token, SgfToken::NodeName("node name".to_string()));
+        let string_token: String = token.into();
+        assert_eq!(string_token, "N[node name]");
+    }
+
+    #[test]
     fn can_parse_copyright_tokens() {
-        let token = SgfToken::from_pair("CR", "copyright");
+        let token = SgfToken::from_pair("CP", "copyright");
         assert_eq!(token, SgfToken::Copyright("copyright".to_string()));
         let string_token: String = token.into();
-        assert_eq!(string_token, "CR[copyright]");
+        assert_eq!(string_token, "CP[copyright]");
     }
 
     #[test]
@@ -312,19 +343,189 @@ mod token_tests {
     }
 
     #[test]
+    fn can_parse_mark_x_tokens() {
+        let token = SgfToken::from_pair("MA", "aa");
+        assert_eq!(
+            token,
+            SgfToken::Cross {
+                coordinates: vec![(1, 1)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "MA[aa]");
+
+        // Add test for multiple coordinates
+        let token = SgfToken::from_pair("MA", "fh:fj");
+        assert_eq!(
+            token,
+            SgfToken::Cross {
+                coordinates: vec![(6, 8), (6, 9), (6, 10)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "MA[fh:fj]");
+    }
+
+    #[test]
+    fn can_parse_mark_circle_tokens() {
+        let token = SgfToken::from_pair("CR", "aa");
+        assert_eq!(
+            token,
+            SgfToken::Circle {
+                coordinates: vec![(1, 1)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "CR[aa]");
+
+        // Add test for multiple coordinates
+        let token = SgfToken::from_pair("CR", "pd:pf");
+        assert_eq!(
+            token,
+            SgfToken::Circle {
+                coordinates: vec![(16, 4), (16, 5), (16, 6)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "CR[pd:pf]");
+    }
+
+    #[test]
     fn can_parse_mark_triangle_tokens() {
         let token = SgfToken::from_pair("TR", "aa");
-        assert_eq!(token, SgfToken::Triangle { coordinate: (1, 1) });
+        assert_eq!(
+            token,
+            SgfToken::Triangle {
+                coordinates: vec![(1, 1)]
+            }
+        );
         let string_token: String = token.into();
         assert_eq!(string_token, "TR[aa]");
+
+        let token = SgfToken::from_pair("TR", "pd:pf");
+        assert_eq!(
+            token,
+            SgfToken::Triangle {
+                coordinates: vec![(16, 4), (16, 5), (16, 6)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "TR[pd:pf]");
     }
 
     #[test]
     fn can_parse_mark_square_tokens() {
         let token = SgfToken::from_pair("SQ", "aa");
-        assert_eq!(token, SgfToken::Square { coordinate: (1, 1) });
+        assert_eq!(
+            token,
+            SgfToken::Square {
+                coordinates: vec![(1, 1)]
+            }
+        );
         let string_token: String = token.into();
         assert_eq!(string_token, "SQ[aa]");
+
+        let token = SgfToken::from_pair("SQ", "pd:pf");
+        assert_eq!(
+            token,
+            SgfToken::Square {
+                coordinates: vec![(16, 4), (16, 5), (16, 6)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "SQ[pd:pf]");
+    }
+
+    #[test]
+    fn can_parse_selected_tokens() {
+        let token = SgfToken::from_pair("SL", "aa");
+        assert_eq!(
+            token,
+            SgfToken::Selected {
+                coordinates: vec![(1, 1)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "SL[aa]");
+
+        let token = SgfToken::from_pair("SL", "pd:pf");
+        assert_eq!(
+            token,
+            SgfToken::Selected {
+                coordinates: vec![(16, 4), (16, 5), (16, 6)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "SL[pd:pf]");
+    }
+
+    #[test]
+    fn can_parse_territory_black_tokens() {
+        let token = SgfToken::from_pair("TB", "aa");
+        assert_eq!(
+            token,
+            SgfToken::TerritoryBlack {
+                coordinates: vec![(1, 1)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "TB[aa]");
+
+        let token = SgfToken::from_pair("TB", "pd:pf");
+        assert_eq!(
+            token,
+            SgfToken::TerritoryBlack {
+                coordinates: vec![(16, 4), (16, 5), (16, 6)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "TB[pd:pf]");
+    }
+
+    #[test]
+    fn can_parse_territory_white_tokens() {
+        let token = SgfToken::from_pair("TW", "aa");
+        assert_eq!(
+            token,
+            SgfToken::TerritoryWhite {
+                coordinates: vec![(1, 1)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "TW[aa]");
+
+        let token = SgfToken::from_pair("TW", "pd:pf");
+        assert_eq!(
+            token,
+            SgfToken::TerritoryWhite {
+                coordinates: vec![(16, 4), (16, 5), (16, 6)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "TW[pd:pf]");
+    }
+
+    #[test]
+    fn can_parse_dimpoints_tokens() {
+        let token = SgfToken::from_pair("DD", "aa");
+        assert_eq!(
+            token,
+            SgfToken::DimPoints {
+                coordinates: vec![(1, 1)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "DD[aa]");
+
+        let token = SgfToken::from_pair("DD", "pd:pf");
+        assert_eq!(
+            token,
+            SgfToken::DimPoints {
+                coordinates: vec![(16, 4), (16, 5), (16, 6)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "DD[pd:pf]");
     }
 
     #[test]
@@ -371,7 +572,7 @@ mod token_tests {
             token,
             SgfToken::Add {
                 color: Color::Black,
-                coordinate: (1, 1),
+                coordinates: vec![(1, 1)],
             }
         );
         let string_token: String = token.into();
@@ -382,11 +583,113 @@ mod token_tests {
             token,
             SgfToken::Add {
                 color: Color::White,
-                coordinate: (11, 11),
+                coordinates: vec![(11, 11)],
             }
         );
         let string_token: String = token.into();
         assert_eq!(string_token, "AW[kk]");
+    }
+
+    #[test]
+    fn can_parse_add_compressed_tokens() {
+        let token = SgfToken::from_pair("AB", "do:gq");
+        assert_eq!(
+            token,
+            SgfToken::Add {
+                color: Color::Black,
+                coordinates: vec![
+                    (4, 15),
+                    (4, 16),
+                    (4, 17),
+                    (5, 15),
+                    (5, 16),
+                    (5, 17),
+                    (6, 15),
+                    (6, 16),
+                    (6, 17),
+                    (7, 15),
+                    (7, 16),
+                    (7, 17)
+                ],
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "AB[do:gq]");
+
+        let token = SgfToken::from_pair("AW", "kn:lq");
+        assert_eq!(
+            token,
+            SgfToken::Add {
+                color: Color::White,
+                coordinates: vec![
+                    (11, 14),
+                    (11, 15),
+                    (11, 16),
+                    (11, 17),
+                    (12, 14),
+                    (12, 15),
+                    (12, 16),
+                    (12, 17)
+                ],
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "AW[kn:lq]");
+    }
+
+    #[test]
+    fn can_parse_add_empty_tokens() {
+        let token = SgfToken::from_pair("AE", "pn:pq");
+        assert_eq!(
+            token,
+            SgfToken::AddEmpty {
+                coordinates: vec![(16, 14), (16, 15), (16, 16), (16, 17)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "AE[pn:pq]");
+
+        let token = SgfToken::from_pair("AE", "aa");
+        assert_eq!(
+            token,
+            SgfToken::AddEmpty {
+                coordinates: vec![(1, 1)]
+            }
+        );
+        let string_token: String = token.into();
+        assert_eq!(string_token, "AE[aa]");
+    }
+
+    #[test]
+    fn can_parse_move_number_tokens() {
+        let token = SgfToken::from_pair("MN", "5");
+        assert_eq!(token, SgfToken::MoveNumber(5));
+        let string_token: String = token.into();
+        assert_eq!(string_token, "MN[5]");
+    }
+
+    #[test]
+    fn can_parse_user_tokens() {
+        let token = SgfToken::from_pair("US", "test_user");
+        assert_eq!(token, SgfToken::User(String::from("test_user")));
+        let string_token: String = token.into();
+        assert_eq!(string_token, "US[test_user]");
+    }
+
+    #[test]
+    fn can_parse_source_tokens() {
+        let token = SgfToken::from_pair("SO", "from somewhere");
+        assert_eq!(token, SgfToken::Source(String::from("from somewhere")));
+        let string_token: String = token.into();
+        assert_eq!(string_token, "SO[from somewhere]");
+    }
+
+    #[test]
+    fn can_parse_game_comment_tokens() {
+        let token = SgfToken::from_pair("GC", "game comments");
+        assert_eq!(token, SgfToken::GameComment(String::from("game comments")));
+        let string_token: String = token.into();
+        assert_eq!(string_token, "GC[game comments]");
     }
 
     #[test]
