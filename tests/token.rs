@@ -20,6 +20,11 @@ mod token_tests {
         assert!(setup_token.is_setup_token());
         assert!(!setup_token.is_root_token());
 
+        let setup_token = SgfToken::from_pair("AW", "cd");
+        assert!(!setup_token.is_game_info_token());
+        assert!(setup_token.is_setup_token());
+        assert!(!setup_token.is_root_token());
+
         let game_info_token = SgfToken::from_pair("RE", "W+T");
         assert!(game_info_token.is_game_info_token());
         assert!(!game_info_token.is_setup_token());
@@ -49,6 +54,15 @@ mod token_tests {
         );
         let string_token: String = token.into();
         assert_eq!(string_token, "W[kk]");
+
+        let token = SgfToken::from_pair("W", "tt");
+        assert_eq!(
+            token,
+            SgfToken::Move {
+                color: Color::White,
+                action: Action::Pass
+            }
+        );
     }
 
     #[test]
@@ -288,6 +302,14 @@ mod token_tests {
     }
 
     #[test]
+    fn can_parse_node_name_tokens() {
+        let token = SgfToken::from_pair("N", "node name");
+        assert_eq!(token, SgfToken::NodeName("node name".to_string()));
+        let string_token: String = token.into();
+        assert_eq!(string_token, "N[node name]");
+    }
+
+    #[test]
     fn can_parse_copyright_tokens() {
         let token = SgfToken::from_pair("CR", "copyright");
         assert_eq!(token, SgfToken::Copyright("copyright".to_string()));
@@ -387,6 +409,22 @@ mod token_tests {
         );
         let string_token: String = token.into();
         assert_eq!(string_token, "AW[kk]");
+    }
+
+    #[test]
+    fn can_parse_add_empty_tokens() {
+        let token = SgfToken::from_pair("AE", "aa");
+        assert_eq!(token, SgfToken::AddEmpty { coordinate: (1, 1) });
+        let string_token: String = token.into();
+        assert_eq!(string_token, "AE[aa]");
+    }
+
+    #[test]
+    fn can_parse_move_number_tokens() {
+        let token = SgfToken::from_pair("MN", "5");
+        assert_eq!(token, SgfToken::MoveNumber(5));
+        let string_token: String = token.into();
+        assert_eq!(string_token, "MN[5]");
     }
 
     #[test]

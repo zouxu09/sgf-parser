@@ -176,6 +176,11 @@ pub enum SgfToken {
         label: String,
         coordinate: (u8, u8),
     },
+    NodeName(String),
+    AddEmpty {
+        coordinate: (u8, u8),
+    },
+    MoveNumber(u32),
 }
 
 impl SgfToken {
@@ -237,6 +242,9 @@ impl SgfToken {
                     color: Color::Black,
                     action: coordinate,
                 }),
+            "AE" => str_to_coordinates(value)
+                .ok()
+                .map(|coordinate| SgfToken::AddEmpty { coordinate }),
             "BL" => value.parse().ok().map(|time| SgfToken::Time {
                 color: Color::Black,
                 time,
@@ -290,7 +298,9 @@ impl SgfToken {
             "EV" => Some(SgfToken::Event(value.to_string())),
             "OT" => Some(SgfToken::Overtime(value.to_string())),
             "C" => Some(SgfToken::Comment(value.to_string())),
+            "MN" => value.parse().ok().map(SgfToken::MoveNumber),
             "GN" => Some(SgfToken::GameName(value.to_string())),
+            "N" => Some(SgfToken::NodeName(value.to_string())),
             "CR" => Some(SgfToken::Copyright(value.to_string())),
             "DT" => Some(SgfToken::Date(value.to_string())),
             "PC" => Some(SgfToken::Place(value.to_string())),
@@ -381,6 +391,8 @@ impl SgfToken {
     /// use sgf_parser::*;
     ///
     /// let token = SgfToken::from_pair("AB", "aa");
+    /// assert!(token.is_setup_token());
+    /// let token = SgfToken::from_pair("AW", "aa");
     /// assert!(token.is_setup_token());
     ///
     /// let token = SgfToken::from_pair("SZ", "19");
@@ -484,6 +496,10 @@ impl Into<String> for &SgfToken {
                 let value = coordinate_to_str(*coordinate);
                 format!("{}[{}]", token, value)
             }
+            SgfToken::AddEmpty { coordinate } => {
+                let value = coordinate_to_str(*coordinate);
+                format!("AE[{}]", value)
+            }
             SgfToken::Move { color, action } => {
                 let token = match color {
                     Color::Black => "B",
@@ -523,8 +539,10 @@ impl Into<String> for &SgfToken {
             SgfToken::TimeLimit(time) => format!("TM[{}]", time),
             SgfToken::Event(value) => format!("EV[{}]", value),
             SgfToken::Comment(value) => format!("C[{}]", value),
+            SgfToken::MoveNumber(mn) => format!("MN[{}]", mn),
             SgfToken::Overtime(value) => format!("OT[{}]", value),
             SgfToken::GameName(value) => format!("GN[{}]", value),
+            SgfToken::NodeName(value) => format!("N[{}]", value),
             SgfToken::Copyright(value) => format!("CR[{}]", value),
             SgfToken::Date(value) => format!("DT[{}]", value),
             SgfToken::Place(value) => format!("PC[{}]", value),
@@ -672,7 +690,13 @@ fn move_str_to_coord(input: &str) -> Result<Action, SgfError> {
         Ok(Pass)
     } else {
         match str_to_coordinates(input) {
-            Ok(coordinates) => Ok(Move(coordinates.0, coordinates.1)),
+            Ok(coordinates) => {
+                if coordinates.0 == 20 && coordinates.1 == 20 {
+                    return Ok(Pass);
+                } else {
+                    Ok(Move(coordinates.0, coordinates.1))
+                }
+            }
             Err(e) => Err(e),
         }
     }
