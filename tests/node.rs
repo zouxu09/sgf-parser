@@ -39,6 +39,6 @@ mod node_tests {
             ],
         };
         let string_node: String = node.into();
-        assert_eq!(string_node, ";AB[aa][bb]PW[white]");
+        assert_eq!(string_node, ";AB[aa]PW[white]AB[bb]");
     }
 }
